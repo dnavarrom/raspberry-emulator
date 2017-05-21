@@ -68,11 +68,85 @@ qemu-system-arm -kernel ./qemu-rpi-kernel/kernel-qemu-4.4.13-jessie \
 add execution permissions
 `sudo chmod +x config`
 
-## Step 5: Run the machine
+## Step 5: Run the basic machine
 
 `./config`
 
 Done, you should get the # inside RPI Machine, If QEMU window has captured your mouse, you can release it by pressing LEFT CTRL + LEFT ALT
+
+
+
+## Step 6: RPI OS Config
+
+Mount the image file 
+```
+fdisk -l ./rpi.img
+
+Device     Boot Start     End Sectors  Size Id Type
+rpi.img1         8192   92159   83968   41M  c W95 FAT32 (LBA)
+rpi.img2        92160 2534887 2442728  1,2G 83 Linux
+```
+
+The filesystem (.img2) starts at sector 92160, which equals 512 * 92160 = 47185920 bytes. 
+
+* Use this value in the offset parameter
+
+```
+sudo mkdir /mnt/rpi
+sudo mount -v -o offset=47185920 -t ext4 rpi.img /mnt/rpi
+```
+
+* Comment out every entry in ld.so.preload file
+``` 
+ cd /mnt/rpi
+ sudo nano ./etc/ld.so.preload 
+```
+* Define some rules to tell raspberry pi how to direct calls to SD-Card to the “sda” 
+
+```
+sudo nano ./etc/udev/rules.d/90-qemu.rules
+
+KERNEL=="sda", SYMLINK+="mmcblk0"
+KERNEL=="sda?", SYMLINK+="mmcblk0p%n"
+KERNEL=="sda2", SYMLINK+="root"
+```
+
+* Umount volume and go back to the working folder
+`cd ~`
+`sudo umount /mnt/rpi`
+`cd path/to/folder`
+
+* Create startup script the config script, change the --append line removing init=/bin/bash
+
+```
+cp config start
+nano ./start
+```
+
+```
+#!/bin/bash
+# Starts raspberry pi image in configuration mode
+
+qemu-system-arm -kernel ./qemu-rpi-kernel/kernel-qemu-4.4.13-jessie \
+-cpu arm1176 \
+-m 256 \
+-M versatilepb \
+-no-reboot \
+-serial stdio \
+-append "root=/dev/sda2 panic=1 rootfstype=ext4 rw" \
+-hda rpi.img
+```
+
+* Run QEMU again, you should get booted into a fully functional emulated Raspberry Pi
+
+```
+./start
+```
+
+* Login 
+
+Username: pi 
+Password: raspberry
 
 
 ## If your raspibian distro always reboot
@@ -95,14 +169,17 @@ The filesystem (.img2) starts at sector 92160, which equals 512 * 92160 = 471859
 
 ```
 sudo mkdir /mnt/rpi
-mount -v -o offset=47185920 -t ext4 rpi.img /mnt/rpi
+sudo mount -v -o offset=47185920 -t ext4 rpi.img /mnt/rpi
 ```
 
 ` cd /mnt/rpi`
 ` sudo nano ./etc/ld.so.preload `
-Comment out every entry in it, Ctrl-x » Y to save and exit
+
+* Comment out every entry in it, Ctrl-x » Y to save and exit
+
 ` sudo nano ./etc/fstab `
-Comment out entries containing /dev/mmcblk, Ctrl-x » Y to save and exit
+
+* Comment out entries containing /dev/mmcblk, Ctrl-x » Y to save and exit
 `cd ~`
 `sudo umount /mnt/rpi`
 
